@@ -1,26 +1,32 @@
 import pandas as pd
 import sqlite3
-import logging
-import json
 from datetime import datetime
-from utils import calculate_age, days_since_last_consulted, safe_parse_date
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def load_config(config_path="config/config.json"):
-    """Load configuration from a JSON file."""
-    try:
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        logging.info(f"Configuration loaded successfully from {config_path}")
-        return config
-    except Exception as e:
-        logging.error(f"Error loading configuration: {e}")
-        raise
+# Helper function to calculate age
+def calculate_age(dob):
+    today = datetime.now()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
+# Helper function to calculate days since last consultation
+def days_since_last_consulted(last_date):
+    today = datetime.now()
+    return (today - last_date).days
+
+# Helper function to safely parse dates with multiple formats
+def safe_parse_date(date_str):
+    formats = ["%Y%m%d", "%m%d%Y", "%Y-%m-%d %H:%M:%S"]  # Add all possible formats
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    print(f"Error parsing date: {date_str}")
+    return None
+
+# Read the data file
 def read_file(file_path):
-    """Read and return data from the input file."""
     try:
         data = pd.read_csv(
             file_path,
@@ -42,57 +48,78 @@ def read_file(file_path):
             ],
         )
         data = data[data["Record_Type"] == "D"].drop(columns=["Record_Type"])
-        logging.info(f"Number of records after reading the file: {len(data)}")
+        print(f"Number of records after reading the file: {len(data)}")
         return data
     except Exception as e:
-        logging.error(f"Error reading file: {e}")
+        print(f"Error reading file: {e}")
         return pd.DataFrame()
 
+# Validate data
 def validate_data(df):
-    """Validate data by checking required columns and types."""
     try:
+        # Check required columns
         required_columns = [
-            "Customer_Name", "Customer_Id", "Open_Date", "Last_Consulted_Date",
-            "Vaccination_Id", "Dr_Name", "State", "Country", "DOB", "Is_Active"
+            "Customer_Name",
+            "Customer_Id",
+            "Open_Date",
+            "Last_Consulted_Date",
+            "Vaccination_Id",
+            "Dr_Name",
+            "State",
+            "Country",
+            "DOB",
+            "Is_Active",
         ]
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
-            logging.error(f"Missing columns: {missing_columns}")
+            print(f"Missing columns: {missing_columns}")
             return pd.DataFrame()
 
-        # Check for proper data types
-        df["Customer_Id"] = df["Customer_Id"].astype(str)
+        # Check for non-null and proper types in specific columns
+        df["Customer_Id"] = df["Customer_Id"].astype(str)  # Convert Customer_Id to string
         df["Open_Date"] = df["Open_Date"].astype(str)
         df["Last_Consulted_Date"] = df["Last_Consulted_Date"].astype(str)
         df["DOB"] = df["DOB"].astype(str)
         df["Is_Active"] = df["Is_Active"].astype(str)
-        
-        logging.info("Data validation completed successfully.")
+
+        print("Validation completed successfully.")
         return df
     except Exception as e:
-        logging.error(f"Error during data validation: {e}")
+        print(f"Error during validation: {e}")
         return pd.DataFrame()
 
+# Display sample data before transformation
+def view_sample_data_before(df):
+    print("Sample Data Before Transformation:")
+    print(df.head(5))
+
+# Transform data
 def transform_data(df):
-    """Transform data by parsing dates and calculating age."""
     try:
-        # Parse dates and remove invalid ones
+        # Parse dates
         df["DOB"] = df["DOB"].apply(safe_parse_date)
         df["Last_Consulted_Date"] = df["Last_Consulted_Date"].apply(safe_parse_date)
+
+        # Drop rows with invalid date parsing
         df = df.dropna(subset=["DOB", "Last_Consulted_Date"])
 
-        # Calculate Age and Days Since Last Consulted
+        # Calculate age and days since last consulted
         df["Age"] = df["DOB"].apply(calculate_age)
         df["Days_Since_Last_Consulted"] = df["Last_Consulted_Date"].apply(days_since_last_consulted)
 
-        logging.info("Data transformation completed successfully.")
+        print("Transformation completed successfully.")
         return df
     except Exception as e:
-        logging.error(f"Error during data transformation: {e}")
+        print(f"Error during transformation: {e}")
         return pd.DataFrame()
 
+# Display sample data after transformation
+def view_sample_data_after(df):
+    print("Sample Data After Transformation:")
+    print(df.head(5))
+
+# Load data into SQLite database
 def load_data(df, db_path):
-    """Load the transformed data into the SQLite database."""
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -119,18 +146,19 @@ def load_data(df, db_path):
             """
             cursor.execute(create_table_query)
 
-        # Insert or overwrite data
+        # Insert or overwrite data into respective tables
         for _, row in df.iterrows():
             table_name = f"Table_{row['Country']}"
+            # Convert dates to strings
             row_data = row.copy()
             row_data["DOB"] = row_data["DOB"].strftime("%Y-%m-%d")
             row_data["Last_Consulted_Date"] = row_data["Last_Consulted_Date"].strftime("%Y-%m-%d")
-
             # Delete existing record with same Customer_Id and DOB
             cursor.execute(
                 f"DELETE FROM {table_name} WHERE Customer_Id = ? AND DOB = ?",
                 (row_data["Customer_Id"], row_data["DOB"]),
             )
+            # Insert new record
             cursor.execute(
                 f"INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 tuple(row_data),
@@ -139,35 +167,65 @@ def load_data(df, db_path):
 
         conn.commit()
         conn.close()
-        logging.info(f"Data successfully loaded. Records loaded: {loaded_records}")
+        print(f"Data successfully loaded. Records loaded: {loaded_records}")
     except Exception as e:
-        logging.error(f"Error during data load: {e}")
+        print(f"Error during data load: {e}")
 
-def etl_process(file_path, db_path, config_path="config/config.json"):
-    """Main ETL process: Extract, Validate, Transform, and Load."""
-    # Load Configuration
-    config = load_config(config_path)
+# View data from SQLite database
+def view_data_in_db(db_path):
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
+        # List all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        print("Tables in Database:", [table[0] for table in tables])
+
+        # Display data from each table
+        for table in tables:
+            print(f"\nData from {table[0]}:")
+            data = pd.read_sql_query(f"SELECT * FROM {table[0]}", conn)
+            print(data.head(5))  # Show only first 5 rows for brevity
+
+        conn.close()
+    except Exception as e:
+        print(f"Error viewing data in database: {e}")
+
+# Main ETL process
+def etl_process(file_path, db_path):
     # Extract
     data = read_file(file_path)
     if data.empty:
-        logging.warning("No data to process.")
+        print("No data to process.")
         return
-    logging.info("Data extraction completed.")
+    print("Data extraction completed.")
 
     # Validate
     data = validate_data(data)
     if data.empty:
-        logging.warning("Data validation failed.")
+        print("Data validation failed.")
         return
-    logging.info("Data validation completed.")
+    print("Data validation completed.")
+
+    # View sample data before transformation
+    view_sample_data_before(data)
 
     # Transform
     data = transform_data(data)
     if data.empty:
-        logging.warning("Data transformation failed.")
+        print("Data transformation failed.")
         return
-    logging.info("Data transformation completed.")
+    print("Data transformation completed.")
+
+    # View sample data after transformation
+    view_sample_data_after(data)
 
     # Load
     load_data(data, db_path)
+    print("Data loading completed.")
+
+    # View data in SQLite database
+    view_data_in_db(db_path)
+
+
