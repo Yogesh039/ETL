@@ -7,7 +7,7 @@ from datetime import datetime
 #  function to calculate age
 def calculate_age(dob):
     today = datetime.now()
-    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    return today.year - dob.year
 
 #  function to calculate days since last consultation
 def days_since_last_consulted(last_date):
