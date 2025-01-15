@@ -4,17 +4,17 @@ from datetime import datetime
 
 
 
-# Helper function to calculate age
+#  function to calculate age
 def calculate_age(dob):
     today = datetime.now()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-# Helper function to calculate days since last consultation
+#  function to calculate days since last consultation
 def days_since_last_consulted(last_date):
     today = datetime.now()
     return (today - last_date).days
 
-# Helper function to safely parse dates with multiple formats
+#  function to safely parse dates with multiple formats
 def safe_parse_date(date_str):
     formats = ["%Y%m%d", "%m%d%Y", "%Y-%m-%d %H:%M:%S"]  # Add all possible formats
     for fmt in formats:
