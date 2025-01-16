@@ -75,8 +75,8 @@ def validate_data(df):
             print(f"Missing columns: {missing_columns}")
             return pd.DataFrame()
 
-        # Check for non-null and proper types in specific columns
-        df["Customer_Id"] = df["Customer_Id"].astype(str)  # Convert Customer_Id to string
+
+        df["Customer_Id"] = df["Customer_Id"].astype(str)  
         df["Open_Date"] = df["Open_Date"].astype(str)
         df["Last_Consulted_Date"] = df["Last_Consulted_Date"].astype(str)
         df["DOB"] = df["DOB"].astype(str)
