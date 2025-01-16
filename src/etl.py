@@ -14,9 +14,9 @@ def days_since_last_consulted(last_date):
     today = datetime.now()
     return (today - last_date).days
 
-#  function to safely parse dates with multiple formats
-def safe_parse_date(date_str):
-    formats = ["%Y%m%d", "%m%d%Y", "%Y-%m-%d %H:%M:%S"]  # Add all possible formats
+#  function to parse dates with multiple formats
+def parse_date(date_str):
+    formats = ["%Y%m%d", "%m%d%Y", "%Y-%m-%d %H:%M:%S"]
     for fmt in formats:
         try:
             return datetime.strptime(date_str, fmt)
@@ -97,8 +97,8 @@ def view_sample_data_before(df):
 def transform_data(df):
     try:
         # Parse dates
-        df["DOB"] = df["DOB"].apply(safe_parse_date)
-        df["Last_Consulted_Date"] = df["Last_Consulted_Date"].apply(safe_parse_date)
+        df["DOB"] = df["DOB"].apply(parse_date)
+        df["Last_Consulted_Date"] = df["Last_Consulted_Date"].apply(parse_date)
 
         # Drop rows with invalid date parsing
         df = df.dropna(subset=["DOB", "Last_Consulted_Date"])
@@ -227,5 +227,3 @@ def etl_process(file_path, db_path):
 
     # View data in SQLite database
     view_data_in_db(db_path)
-
-
