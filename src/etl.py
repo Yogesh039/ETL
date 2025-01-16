@@ -16,7 +16,7 @@ def days_since_last_consulted(last_date):
 
 #  function to parse dates with multiple formats
 def parse_date(date_str):
-    formats = ["%Y%m%d", "%m%d%Y", "%Y-%m-%d %H:%M:%S"]
+    formats = ["%Y%m%d", "%m%d%Y"]
     for fmt in formats:
         try:
             return datetime.strptime(date_str, fmt)
